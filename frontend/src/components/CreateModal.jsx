@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { Modal } from "./Modal";
 
+const EMPTY_INITIAL_DATA = {};
+
 export const CreateModal = ({
   isOpen,
   onClose,
   title,
   fields,
   onSubmit,
-  initialData = {},
+  initialData = EMPTY_INITIAL_DATA,
   submitLabel = "Create",
   submittingLabel = "Creating...",
 }) => {
