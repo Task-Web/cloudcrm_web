@@ -20,7 +20,7 @@ services:
     networks:
       - web
     labels:
-      caddy: "cloudcrm.${HOST_SUFFIX:-localhost}"
+      caddy: "${CADDY_SCHEME-http://}cloudcrm.${HOST_SUFFIX:-localhost}"
       caddy.0_reverse_proxy: "/api* cloudcrm_web_backend:8000"
       caddy.1_reverse_proxy: "/mcp* cloudcrm_web_backend:8000"
       caddy.2_reverse_proxy: "cloudcrm_web_frontend:80"
