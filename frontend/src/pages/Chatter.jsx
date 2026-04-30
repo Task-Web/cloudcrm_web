@@ -179,7 +179,7 @@ export const Chatter = ({ onShowToast }) => {
                           <ThumbsUp size={16} fill={hasLiked ? "var(--primary)" : "none"} />
                           {post.likeCount} {post.likeCount === 1 ? "Like" : "Likes"}
                         </button>
-                        <button
+                        <span
                           style={{
                             display: "flex",
                             alignItems: "center",
@@ -189,7 +189,7 @@ export const Chatter = ({ onShowToast }) => {
                         >
                           <MessageSquare size={16} />
                           {post.commentCount} {post.commentCount === 1 ? "Comment" : "Comments"}
-                        </button>
+                        </span>
                       </div>
 
                       {post.comments.length > 0 && (

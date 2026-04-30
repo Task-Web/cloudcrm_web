@@ -232,30 +232,20 @@ export const TopNav = ({ onShowToast }) => {
           )}
         </div>
 
-        <button style={{ padding: "8px" }} title="Help & Training">
+        <button
+          style={{ padding: "8px" }}
+          title="Help & Training"
+          onClick={() => onShowToast("Help center: visit docs for guides and training.", "info")}
+        >
           <HelpCircle size={20} />
         </button>
 
-        <button style={{ padding: "8px", position: "relative" }} title="Notifications">
+        <button
+          style={{ padding: "8px", position: "relative" }}
+          title="Notifications"
+          onClick={() => onShowToast("You're all caught up. No new notifications.", "info")}
+        >
           <Bell size={20} />
-          <span
-            style={{
-              position: "absolute",
-              top: "4px",
-              right: "4px",
-              background: "var(--error)",
-              color: "white",
-              borderRadius: "50%",
-              width: "16px",
-              height: "16px",
-              fontSize: "10px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            3
-          </span>
         </button>
 
         <div style={{ position: "relative" }}>

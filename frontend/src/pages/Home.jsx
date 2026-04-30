@@ -304,12 +304,15 @@ export const Home = () => {
                     </div>
                     <p style={{ fontSize: "14px", marginBottom: "8px" }}>{post.content}</p>
                     <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "var(--text-secondary)" }}>
-                      <button style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                         <ThumbsUp size={14} /> {post.likeCount}
-                      </button>
-                      <button style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      </span>
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                         <MessageSquare size={14} /> {post.commentCount}
-                      </button>
+                      </span>
+                      <Link to="/chatter" style={{ marginLeft: "auto", color: "var(--primary)" }}>
+                        Open in Chatter
+                      </Link>
                     </div>
                   </div>
                 );

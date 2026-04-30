@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Copy, Edit, Mail, MoreHorizontal, Phone, RefreshCw, Trash2 } from "lucide-react";
+import { Copy, Edit, Mail, Phone, RefreshCw, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useApp } from "../context/AppContext";
 import { Modal } from "../components/Modal";
@@ -281,9 +281,6 @@ export const LeadDetail = ({ onShowToast }) => {
             <button className="btn btn-secondary" onClick={handleClone}>
               <Copy size={18} />
               Clone
-            </button>
-            <button className="btn btn-secondary">
-              <MoreHorizontal size={18} />
             </button>
             <button className="btn btn-danger" onClick={handleDelete}>
               <Trash2 size={18} />
