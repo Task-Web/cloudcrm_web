@@ -8,7 +8,7 @@ import { Modal } from "../components/Modal";
 export const OpportunityDetail = ({ onShowToast }) => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editData, setEditData] = useState({
@@ -60,7 +60,7 @@ export const OpportunityDetail = ({ onShowToast }) => {
         : item
     );
     try {
-      await updateState({ opportunities: updatedOpportunities });
+      await applyCrmChange({ opportunities: updatedOpportunities });
       setShowEditModal(false);
       onShowToast("Opportunity updated successfully.", "success");
     } catch (err) {
@@ -75,7 +75,7 @@ export const OpportunityDetail = ({ onShowToast }) => {
   const confirmDelete = async () => {
     const updatedOpportunities = state.opportunities.filter((item) => item.opportunityId !== id);
     try {
-      await updateState({ opportunities: updatedOpportunities });
+      await applyCrmChange({ opportunities: updatedOpportunities });
       onShowToast("Opportunity deleted successfully.", "success");
       navigate("/opportunities");
     } catch (err) {

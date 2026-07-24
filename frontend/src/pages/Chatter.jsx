@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { useApp } from "../context/AppContext";
 
 export const Chatter = ({ onShowToast }) => {
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const [newPost, setNewPost] = useState("");
   const [commentInputs, setCommentInputs] = useState({});
 
@@ -23,7 +23,7 @@ export const Chatter = ({ onShowToast }) => {
     };
 
     try {
-      await updateState({
+      await applyCrmChange({
         chatterPosts: [post, ...state.chatterPosts],
       });
       setNewPost("");
@@ -49,7 +49,7 @@ export const Chatter = ({ onShowToast }) => {
     });
 
     try {
-      await updateState({ chatterPosts: updatedPosts });
+      await applyCrmChange({ chatterPosts: updatedPosts });
     } catch (err) {
       onShowToast(err.message || "Failed to update like.", "error");
     }
@@ -79,7 +79,7 @@ export const Chatter = ({ onShowToast }) => {
     });
 
     try {
-      await updateState({ chatterPosts: updatedPosts });
+      await applyCrmChange({ chatterPosts: updatedPosts });
       setCommentInputs({ ...commentInputs, [postId]: "" });
       onShowToast("Comment added.", "success");
     } catch (err) {
@@ -94,7 +94,7 @@ export const Chatter = ({ onShowToast }) => {
       : [...state.following, userId];
 
     try {
-      await updateState({ following: updatedFollowing });
+      await applyCrmChange({ following: updatedFollowing });
       onShowToast(isFollowing ? "Unfollowed user." : "Following user.", "success");
     } catch (err) {
       onShowToast(err.message || "Failed to update follow.", "error");

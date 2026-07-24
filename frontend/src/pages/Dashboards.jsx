@@ -4,7 +4,7 @@ import { useApp } from "../context/AppContext";
 import { CreateModal } from "../components/CreateModal";
 
 export const Dashboards = ({ onShowToast }) => {
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   const dashboardFields = [
@@ -30,7 +30,7 @@ export const Dashboards = ({ onShowToast }) => {
     };
 
     try {
-      await updateState({ dashboards: [...(state.dashboards || []), newDashboard] });
+      await applyCrmChange({ dashboards: [...(state.dashboards || []), newDashboard] });
       onShowToast("Dashboard created successfully.", "success");
     } catch (err) {
       onShowToast(err.message || "Failed to create dashboard.", "error");

@@ -10,45 +10,42 @@ const buildResponse = (data, status = 200) =>
 describe("App", () => {
   const statePayload = {
     user_id: "test-user",
-    state: {
-      meta: { created_at: "2024-01-01T00:00:00Z", updated_at: "2024-01-01T00:00:00Z", version: 1 },
-      data: { sample: true },
-      note: null,
+    workspace: {
+      user: { userId: "user-1", firstName: "Test", lastName: "User" },
+      users: [],
+      leads: [],
+      accounts: [],
+      contacts: [],
+      opportunities: [],
+      cases: [],
+      activities: [],
+      chatterPosts: [],
+      dashboards: [],
+      files: [],
+      following: [],
     },
   };
 
-  const infoPayload = {
-    app_name: "Base Experiment Backend",
-    python_version: "3.11.0",
-    env: { python_version: "3.11.0", platform: "test-os", env_mode: "dev" },
-    request: { client: "127.0.0.1", headers: {}, path: "/api/info", method: "GET", user_id: "test-user" },
-  };
-
   beforeEach(() => {
-    const responses = [statePayload, infoPayload];
-    global.fetch = vi.fn(async () => {
-      const next = responses.shift();
-      return buildResponse(next ?? {});
-    });
+    global.fetch = vi.fn(async () => buildResponse(statePayload));
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders user cookie and state payload", async () => {
+  it("renders the CRM workspace", async () => {
     render(<App />);
 
-    expect(await screen.findByText(/User cookie: test-user/)).toBeInTheDocument();
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(2));
-    expect(screen.getByText(/Server view/i)).toBeInTheDocument();
-    expect(screen.getByText(/Per-user state playground/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Good morning, Test!/i)).toBeInTheDocument();
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    expect(screen.getByText(/Recent Items/i)).toBeInTheDocument();
   });
 
-  it("shows default editor content", async () => {
+  it("renders navigation for the product resources", async () => {
     render(<App />);
-    await screen.findByText(/User cookie: test-user/);
-    const textarea = screen.getByRole("textbox", { name: /json payload/i });
-    expect(textarea.value).toMatch(/\"experiment\"/);
+    await screen.findByText(/Good morning, Test!/i);
+    expect(screen.getByRole("link", { name: /CloudCRM/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /View all leads/i })).toBeInTheDocument();
   });
 });

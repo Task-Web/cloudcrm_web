@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { CreateModal } from "../components/CreateModal";
 
 export const Leads = ({ onShowToast }) => {
-  const { state, updateState, loading } = useApp();
+  const { state, applyCrmChange, loading } = useApp();
   const [selectedView, setSelectedView] = useState("all");
   const [sortField, setSortField] = useState("createdDate");
   const [sortDirection, setSortDirection] = useState("desc");
@@ -149,7 +149,7 @@ export const Leads = ({ onShowToast }) => {
     };
 
     try {
-      await updateState({ leads: [...state.leads, newLead] });
+      await applyCrmChange({ leads: [...state.leads, newLead] });
       onShowToast("Lead created successfully.", "success");
     } catch (err) {
       onShowToast(err.message || "Failed to create lead.", "error");

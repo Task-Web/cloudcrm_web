@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { CreateModal } from "../components/CreateModal";
 
 export const Accounts = ({ onShowToast }) => {
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -65,7 +65,7 @@ export const Accounts = ({ onShowToast }) => {
     };
 
     try {
-      await updateState({ accounts: [...state.accounts, newAccount] });
+      await applyCrmChange({ accounts: [...state.accounts, newAccount] });
       onShowToast("Account created successfully.", "success");
     } catch (err) {
       onShowToast(err.message || "Failed to create account.", "error");

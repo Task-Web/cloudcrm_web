@@ -3,6 +3,7 @@ import os
 import platform
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
@@ -12,7 +13,32 @@ from mcp.server.fastmcp import FastMCP
 
 from .config import Settings, get_settings
 from .file_store import FileStore
-from .schemas import FileMetadata, InfoResponse, StatePatchRequest, StateRequest, StateResponse
+from .schemas import (
+    AccountCreate,
+    AccountUpdate,
+    ActivityCreate,
+    ActivityUpdate,
+    CaseCreate,
+    CaseUpdate,
+    ChatterCommentCreate,
+    ChatterPostCreate,
+    ContactCreate,
+    ContactUpdate,
+    CrmFileCreate,
+    DashboardCreate,
+    DashboardUpdate,
+    FileMetadata,
+    InfoResponse,
+    LeadCreate,
+    LeadConversionRequest,
+    LeadUpdate,
+    OpportunityCreate,
+    OpportunityUpdate,
+    StatePatchRequest,
+    StateRequest,
+    StateResponse,
+    UserProfileUpdate,
+)
 from .state_store import StateStore
 
 settings = get_settings()
@@ -20,7 +46,6 @@ store = StateStore()
 file_store = FileStore("files", settings.api_prefix)
 
 tags_metadata = [
-    {"name": "state", "description": "Manage per-user experiment state"},
     {"name": "files", "description": "Upload and fetch files scoped to a user cookie"},
     {"name": "system", "description": "Environment and health information"},
 ]
@@ -111,15 +136,13 @@ async def health() -> Dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/state-doc", tags=["system"])
-async def state_doc():
-    from pathlib import Path
-    content = Path("/app/STATE.md").read_text(encoding="utf-8")
-    return Response(content=content, media_type="text/plain; charset=utf-8")
-
-
 # when build on the basesite, the below endpoints about state management should remain unchanged
-@app.get(f"{settings.api_prefix}/state", response_model=StateResponse, tags=["state"])
+@app.get(
+    f"{settings.api_prefix}/state",
+    response_model=StateResponse,
+    tags=["state"],
+    include_in_schema=False,
+)
 async def get_state(user_id: str = Depends(get_user_id)) -> StateResponse:
     state = await store.get_state(user_id)
     return StateResponse(user_id=user_id, state=state)
@@ -130,6 +153,7 @@ async def get_state(user_id: str = Depends(get_user_id)) -> StateResponse:
     response_model=StateResponse,
     tags=["state"],
     summary="Replace state",
+    include_in_schema=False,
 )
 async def put_state(payload: StateRequest, user_id: str = Depends(get_user_id)) -> StateResponse:
     next_state = {"data": payload.data, "note": payload.note}
@@ -144,6 +168,7 @@ async def put_state(payload: StateRequest, user_id: str = Depends(get_user_id)) 
     response_model=StateResponse,
     tags=["state"],
     summary="Merge into existing state",
+    include_in_schema=False,
 )
 async def patch_state(
     payload: StatePatchRequest, user_id: str = Depends(get_user_id)
@@ -157,11 +182,426 @@ async def patch_state(
     response_model=StateResponse,
     tags=["state"],
     summary="Reset and clear state",
+    include_in_schema=False,
 )
 async def delete_state(user_id: str = Depends(get_user_id)) -> StateResponse:
     file_store.delete_user_files(user_id)
     state = await store.reset_state(user_id)
     return StateResponse(user_id=user_id, state=state)
+
+
+CRM_ID_FIELDS = {
+    "accounts": "accountId",
+    "activities": "activityId",
+    "cases": "caseId",
+    "chatterPosts": "postId",
+    "contacts": "contactId",
+    "dashboards": "dashboardId",
+    "files": "fileId",
+    "leads": "leadId",
+    "opportunities": "opportunityId",
+    "users": "userId",
+}
+
+CRM_RESOURCE_ROUTES = {
+    "accounts": ("accounts", AccountCreate, AccountUpdate),
+    "activities": ("activities", ActivityCreate, ActivityUpdate),
+    "cases": ("cases", CaseCreate, CaseUpdate),
+    "contacts": ("contacts", ContactCreate, ContactUpdate),
+    "dashboards": ("dashboards", DashboardCreate, DashboardUpdate),
+    "files": ("file-records", CrmFileCreate, None),
+    "leads": ("leads", LeadCreate, LeadUpdate),
+    "opportunities": ("opportunities", OpportunityCreate, OpportunityUpdate),
+    "users": ("users", None, UserProfileUpdate),
+}
+
+
+def _crm_projection(user_id: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    keys = {*CRM_ID_FIELDS, "following", "user"}
+    return {"user_id": user_id, "workspace": {key: data.get(key) for key in keys}}
+
+
+@app.get(f"{settings.api_prefix}/crm/workspace", tags=["crm"])
+async def crm_workspace(user_id: str = Depends(get_user_id)) -> Dict[str, Any]:
+    state = await store.get_state(user_id)
+    return _crm_projection(user_id, state.data)
+
+
+@app.post(f"{settings.api_prefix}/crm/leads/{{lead_id}}/convert", tags=["crm"])
+async def convert_crm_lead(
+    lead_id: str,
+    payload: LeadConversionRequest,
+    user_id: str = Depends(get_user_id),
+) -> Dict[str, Any]:
+    if payload.createOpportunity and not payload.createAccount:
+        raise HTTPException(
+            status_code=422, detail="An opportunity conversion requires an account"
+        )
+
+    def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+        lead = next(
+            (item for item in data.get("leads", []) if item.get("leadId") == lead_id),
+            None,
+        )
+        if lead is None:
+            raise HTTPException(status_code=404, detail="Lead not found")
+        if lead.get("status") == "Qualified":
+            raise HTTPException(status_code=409, detail="Lead is already converted")
+        now_value = datetime.now(timezone.utc)
+        now = now_value.isoformat().replace("+00:00", "Z")
+        account_id = None
+        if payload.createAccount:
+            account_id = f"account_{uuid.uuid4().hex}"
+            data.setdefault("accounts", []).append(
+                {
+                    "accountId": account_id,
+                    "name": payload.accountName or lead.get("company", ""),
+                    "phone": lead.get("phone", ""),
+                    "website": lead.get("website", ""),
+                    "type": "Prospect",
+                    "industry": lead.get("industry", ""),
+                    "revenue": lead.get("revenue", 0),
+                    "employees": lead.get("employees", 0),
+                    "description": lead.get("description", ""),
+                    "ownerId": lead.get("ownerId"),
+                    "billingStreet": lead.get("street", ""),
+                    "billingCity": lead.get("city", ""),
+                    "billingState": lead.get("state", ""),
+                    "billingZip": lead.get("zip", ""),
+                    "billingCountry": lead.get("country", ""),
+                    "shippingStreet": lead.get("street", ""),
+                    "shippingCity": lead.get("city", ""),
+                    "shippingState": lead.get("state", ""),
+                    "shippingZip": lead.get("zip", ""),
+                    "shippingCountry": lead.get("country", ""),
+                    "createdDate": now,
+                    "modifiedDate": now,
+                }
+            )
+        if payload.createContact:
+            data.setdefault("contacts", []).append(
+                {
+                    "contactId": f"contact_{uuid.uuid4().hex}",
+                    "accountId": account_id or "",
+                    "firstName": lead.get("firstName", ""),
+                    "lastName": lead.get("lastName", ""),
+                    "title": lead.get("title", ""),
+                    "department": "",
+                    "email": lead.get("email", ""),
+                    "phone": lead.get("phone", ""),
+                    "mobile": lead.get("mobile", ""),
+                    "mailingStreet": lead.get("street", ""),
+                    "mailingCity": lead.get("city", ""),
+                    "mailingState": lead.get("state", ""),
+                    "mailingZip": lead.get("zip", ""),
+                    "mailingCountry": lead.get("country", ""),
+                    "ownerId": lead.get("ownerId"),
+                    "createdDate": now,
+                    "modifiedDate": now,
+                }
+            )
+        if payload.createOpportunity:
+            data.setdefault("opportunities", []).append(
+                {
+                    "opportunityId": f"opp_{uuid.uuid4().hex}",
+                    "name": payload.opportunityName or f"{lead.get('company', '')} - Opportunity",
+                    "accountId": account_id,
+                    "amount": payload.amount,
+                    "closeDate": payload.closeDate
+                    or (now_value + timedelta(days=30)).isoformat().replace("+00:00", "Z"),
+                    "stage": payload.stage,
+                    "probability": 10,
+                    "type": "New Business",
+                    "leadSource": lead.get("source", ""),
+                    "nextStep": "Initial contact",
+                    "description": lead.get("description", ""),
+                    "ownerId": lead.get("ownerId"),
+                    "createdDate": now,
+                    "modifiedDate": now,
+                }
+            )
+        lead["status"] = "Qualified"
+        lead["modifiedDate"] = now
+        return data
+
+    state = await store.mutate_data(user_id, mutate)
+    return _crm_projection(user_id, state.data)
+
+
+def _resource_endpoint(resource: str, action: str, model_type=None):
+    id_field = CRM_ID_FIELDS[resource]
+
+    if action == "create":
+        async def create(payload: model_type, user_id: str = Depends(get_user_id)):
+            values = payload.model_dump(exclude_none=True)
+            now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+            profile_id = (await store.get_state(user_id)).data.get("user", {}).get("userId")
+            if resource == "files":
+                upload_id = values.pop("uploadId")
+                upload = next(
+                    (item for item in file_store.list_files(user_id) if item.id == upload_id),
+                    None,
+                )
+                if upload is None:
+                    raise HTTPException(status_code=404, detail="Uploaded file not found")
+                values = {
+                    "fileId": upload.id,
+                    "name": upload.name,
+                    "ownerId": profile_id,
+                    "size": upload.size,
+                    "type": upload.type,
+                    "uploadDate": now,
+                    "url": upload.url,
+                }
+            else:
+                record_id = f"{id_field.removesuffix('Id')}_{uuid.uuid4().hex}"
+                values[id_field] = record_id
+                values["createdDate"] = now
+                if resource in {"accounts", "contacts", "leads", "opportunities"}:
+                    values["modifiedDate"] = now
+                    values["ownerId"] = profile_id
+                if resource == "cases":
+                    values["ownerId"] = profile_id
+                if resource == "dashboards":
+                    values["createdBy"] = profile_id
+
+            def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+                records = data.setdefault(resource, [])
+                record_id = values[id_field]
+                if any(record.get(id_field) == record_id for record in records):
+                    raise HTTPException(status_code=409, detail="Record already exists")
+                if resource == "cases":
+                    values["caseNumber"] = f"CASE-{len(records) + 1:04d}"
+                records.append(values)
+                return data
+
+            state = await store.mutate_data(user_id, mutate)
+            return _crm_projection(user_id, state.data)
+
+        create.__name__ = f"create_crm_{resource}"
+        return create
+
+    if action == "update":
+        async def update(record_id: str, payload: model_type, user_id: str = Depends(get_user_id)):
+            values = payload.model_dump(exclude_none=True)
+            body_id = values.pop(id_field, None)
+            if body_id is not None and body_id != record_id:
+                raise HTTPException(status_code=422, detail="Record id cannot be changed")
+            if not values:
+                raise HTTPException(status_code=422, detail="At least one field is required")
+            if resource in {"accounts", "contacts", "leads", "opportunities"}:
+                values["modifiedDate"] = datetime.now(timezone.utc).isoformat().replace(
+                    "+00:00", "Z"
+                )
+
+            def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+                records = data.setdefault(resource, [])
+                index = next(
+                    (idx for idx, item in enumerate(records) if item.get(id_field) == record_id),
+                    None,
+                )
+                if index is None:
+                    raise HTTPException(status_code=404, detail="Record not found")
+                records[index] = {**records[index], **values}
+                return data
+
+            state = await store.mutate_data(user_id, mutate)
+            return _crm_projection(user_id, state.data)
+
+        update.__name__ = f"update_crm_{resource}"
+        return update
+
+    async def delete(record_id: str, user_id: str = Depends(get_user_id)):
+        def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+            records = data.setdefault(resource, [])
+            index = next(
+                (idx for idx, item in enumerate(records) if item.get(id_field) == record_id),
+                None,
+            )
+            if index is None:
+                raise HTTPException(status_code=404, detail="Record not found")
+            records.pop(index)
+            return data
+
+        state = await store.mutate_data(user_id, mutate)
+        return _crm_projection(user_id, state.data)
+
+    delete.__name__ = f"delete_crm_{resource}"
+    return delete
+
+
+for _resource, (_route, _create_model, _update_model) in CRM_RESOURCE_ROUTES.items():
+    _path = f"{settings.api_prefix}/crm/{_route}"
+    if _create_model is not None:
+        app.add_api_route(
+            _path,
+            _resource_endpoint(_resource, "create", _create_model),
+            methods=["POST"],
+            tags=["crm"],
+        )
+    if _update_model is not None:
+        app.add_api_route(
+            f"{_path}/{{record_id}}",
+            _resource_endpoint(_resource, "update", _update_model),
+            methods=["PATCH"],
+            tags=["crm"],
+        )
+    if _resource != "users":
+        app.add_api_route(
+            f"{_path}/{{record_id}}",
+            _resource_endpoint(_resource, "delete"),
+            methods=["DELETE"],
+            tags=["crm"],
+        )
+
+
+@app.post(f"{settings.api_prefix}/crm/chatter-posts", tags=["crm"])
+async def create_chatter_post(
+    payload: ChatterPostCreate, user_id: str = Depends(get_user_id)
+) -> Dict[str, Any]:
+    def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+        profile_id = data.get("user", {}).get("userId")
+        post = {
+            "postId": f"post-{uuid.uuid4().hex}",
+            "userId": profile_id,
+            "content": payload.content,
+            "createdDate": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "likeCount": 0,
+            "commentCount": 0,
+            "likes": [],
+            "comments": [],
+        }
+        data.setdefault("chatterPosts", []).insert(0, post)
+        return data
+
+    state = await store.mutate_data(user_id, mutate)
+    return _crm_projection(user_id, state.data)
+
+
+def _chatter_post(data: Dict[str, Any], post_id: str) -> Dict[str, Any]:
+    post = next(
+        (item for item in data.get("chatterPosts", []) if item.get("postId") == post_id),
+        None,
+    )
+    if post is None:
+        raise HTTPException(status_code=404, detail="Post not found")
+    return post
+
+
+@app.put(f"{settings.api_prefix}/crm/chatter-posts/{{post_id}}/likes/me", tags=["crm"])
+async def like_chatter_post(
+    post_id: str, user_id: str = Depends(get_user_id)
+) -> Dict[str, Any]:
+    def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+        profile_id = data.get("user", {}).get("userId")
+        post = _chatter_post(data, post_id)
+        likes = post.setdefault("likes", [])
+        if profile_id not in likes:
+            likes.append(profile_id)
+        post["likeCount"] = len(likes)
+        return data
+
+    state = await store.mutate_data(user_id, mutate)
+    return _crm_projection(user_id, state.data)
+
+
+@app.delete(f"{settings.api_prefix}/crm/chatter-posts/{{post_id}}/likes/me", tags=["crm"])
+async def unlike_chatter_post(
+    post_id: str, user_id: str = Depends(get_user_id)
+) -> Dict[str, Any]:
+    def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+        profile_id = data.get("user", {}).get("userId")
+        post = _chatter_post(data, post_id)
+        likes = post.setdefault("likes", [])
+        if profile_id in likes:
+            likes.remove(profile_id)
+        post["likeCount"] = len(likes)
+        return data
+
+    state = await store.mutate_data(user_id, mutate)
+    return _crm_projection(user_id, state.data)
+
+
+@app.post(f"{settings.api_prefix}/crm/chatter-posts/{{post_id}}/comments", tags=["crm"])
+async def comment_on_chatter_post(
+    post_id: str,
+    payload: ChatterCommentCreate,
+    user_id: str = Depends(get_user_id),
+) -> Dict[str, Any]:
+    def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+        profile_id = data.get("user", {}).get("userId")
+        post = _chatter_post(data, post_id)
+        post.setdefault("comments", []).append(
+            {
+                "commentId": f"comment-{uuid.uuid4().hex}",
+                "userId": profile_id,
+                "content": payload.content,
+                "createdDate": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "likeCount": 0,
+                "likes": [],
+            }
+        )
+        post["commentCount"] = len(post["comments"])
+        return data
+
+    state = await store.mutate_data(user_id, mutate)
+    return _crm_projection(user_id, state.data)
+
+
+@app.patch(f"{settings.api_prefix}/crm/profile/{{profile_id}}", tags=["crm"])
+async def update_crm_profile(
+    profile_id: str,
+    payload: UserProfileUpdate,
+    user_id: str = Depends(get_user_id),
+) -> Dict[str, Any]:
+    values = payload.model_dump(exclude_none=True)
+    if not values:
+        raise HTTPException(status_code=422, detail="At least one field is required")
+
+    def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+        profile = data.get("user", {})
+        if profile.get("userId") != profile_id:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        data["user"] = {**profile, **values}
+        data["users"] = [
+            {**item, **values} if item.get("userId") == profile_id else item
+            for item in data.get("users", [])
+        ]
+        return data
+
+    state = await store.mutate_data(user_id, mutate)
+    return _crm_projection(user_id, state.data)
+
+
+@app.post(f"{settings.api_prefix}/crm/following/{{profile_id}}", tags=["crm"])
+async def follow_crm_profile(
+    profile_id: str, user_id: str = Depends(get_user_id)
+) -> Dict[str, Any]:
+    def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+        if not any(item.get("userId") == profile_id for item in data.get("users", [])):
+            raise HTTPException(status_code=404, detail="Profile not found")
+        following = data.setdefault("following", [])
+        if profile_id not in following:
+            following.append(profile_id)
+        return data
+
+    state = await store.mutate_data(user_id, mutate)
+    return _crm_projection(user_id, state.data)
+
+
+@app.delete(f"{settings.api_prefix}/crm/following/{{profile_id}}", tags=["crm"])
+async def unfollow_crm_profile(
+    profile_id: str, user_id: str = Depends(get_user_id)
+) -> Dict[str, Any]:
+    def mutate(data: Dict[str, Any]) -> Dict[str, Any]:
+        following = data.setdefault("following", [])
+        if profile_id not in following:
+            raise HTTPException(status_code=404, detail="Followed profile not found")
+        following.remove(profile_id)
+        return data
+
+    state = await store.mutate_data(user_id, mutate)
+    return _crm_projection(user_id, state.data)
 
 
 @app.post(

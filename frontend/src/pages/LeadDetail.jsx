@@ -8,7 +8,7 @@ import { Modal } from "../components/Modal";
 export const LeadDetail = ({ onShowToast }) => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange, convertLead } = useApp();
   const [activeTab, setActiveTab] = useState("details");
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -42,97 +42,22 @@ export const LeadDetail = ({ onShowToast }) => {
   }
 
   const handleConvert = async () => {
-    let newAccountId = "";
-    const updates = {};
-
-    if (convertData.createAccount) {
-      const accountId = `account-${Date.now()}`;
-      const newAccount = {
-        accountId,
-        name: convertData.accountName || lead.company,
-        phone: lead.phone,
-        website: lead.website,
-        type: "Prospect",
-        industry: lead.industry,
-        revenue: lead.revenue,
-        employees: lead.employees,
-        description: lead.description,
-        ownerId: lead.ownerId,
-        billingStreet: lead.street,
-        billingCity: lead.city,
-        billingState: lead.state,
-        billingZip: lead.zip,
-        billingCountry: lead.country,
-        shippingStreet: lead.street,
-        shippingCity: lead.city,
-        shippingState: lead.state,
-        shippingZip: lead.zip,
-        shippingCountry: lead.country,
-        createdDate: new Date().toISOString(),
-        modifiedDate: new Date().toISOString(),
-      };
-      updates.accounts = [...state.accounts, newAccount];
-      newAccountId = accountId;
-    }
-
-    if (convertData.createContact) {
-      const contactId = `contact-${Date.now()}`;
-      const newContact = {
-        contactId,
-        accountId: newAccountId,
-        firstName: lead.firstName,
-        lastName: lead.lastName,
-        title: lead.title,
-        department: "",
-        email: lead.email,
-        phone: lead.phone,
-        mobile: lead.mobile,
-        mailingStreet: lead.street,
-        mailingCity: lead.city,
-        mailingState: lead.state,
-        mailingZip: lead.zip,
-        mailingCountry: lead.country,
-        ownerId: lead.ownerId,
-        createdDate: new Date().toISOString(),
-        modifiedDate: new Date().toISOString(),
-      };
-      updates.contacts = [...state.contacts, newContact];
-    }
-
-    if (convertData.createOpportunity && newAccountId) {
-      const opportunityId = `opp-${Date.now()}`;
-      const closeDate = convertData.closeDate
-        ? new Date(convertData.closeDate).toISOString()
-        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      const newOpportunity = {
-        opportunityId,
-        name: convertData.opportunityName || `${lead.company} - Opportunity`,
-        accountId: newAccountId,
-        amount: parseFloat(convertData.amount) || 0,
-        closeDate,
-        stage: convertData.stage,
-        probability: 10,
-        type: "New Business",
-        leadSource: lead.source,
-        nextStep: "Initial contact",
-        description: lead.description,
-        ownerId: lead.ownerId,
-        createdDate: new Date().toISOString(),
-        modifiedDate: new Date().toISOString(),
-      };
-      updates.opportunities = [...state.opportunities, newOpportunity];
-    }
-
-    updates.leads = state.leads.map((item) =>
-      item.leadId === lead.leadId ? { ...item, status: "Qualified" } : item
-    );
-
     try {
-      await updateState(updates);
+      const nextState = await convertLead(lead.leadId, {
+        ...convertData,
+        amount: parseFloat(convertData.amount) || 0,
+        closeDate: convertData.closeDate
+          ? new Date(convertData.closeDate).toISOString()
+          : null,
+      });
       setShowConvertModal(false);
       onShowToast("Lead converted successfully.", "success");
-      if (newAccountId) {
-        navigate(`/accounts/${newAccountId}`);
+      if (convertData.createAccount) {
+        const previousAccountIds = new Set(state.accounts.map((account) => account.accountId));
+        const createdAccount = nextState.accounts.find(
+          (account) => !previousAccountIds.has(account.accountId)
+        );
+        if (createdAccount) navigate(`/accounts/${createdAccount.accountId}`);
       }
     } catch (err) {
       onShowToast(err.message || "Failed to convert lead.", "error");
@@ -149,9 +74,11 @@ export const LeadDetail = ({ onShowToast }) => {
       modifiedDate: new Date().toISOString(),
     };
     try {
-      await updateState({ leads: [...state.leads, clonedLead] });
+      const nextState = await applyCrmChange({ leads: [...state.leads, clonedLead] });
       onShowToast("Lead cloned successfully.", "success");
-      navigate(`/leads/${newLeadId}`);
+      const previousLeadIds = new Set(state.leads.map((item) => item.leadId));
+      const createdLead = nextState.leads.find((item) => !previousLeadIds.has(item.leadId));
+      if (createdLead) navigate(`/leads/${createdLead.leadId}`);
     } catch (err) {
       onShowToast(err.message || "Failed to clone lead.", "error");
     }
@@ -202,7 +129,7 @@ export const LeadDetail = ({ onShowToast }) => {
       item.leadId === id ? { ...item, ...editData, modifiedDate: new Date().toISOString() } : item
     );
     try {
-      await updateState({ leads: updatedLeads });
+      await applyCrmChange({ leads: updatedLeads });
       setShowEditModal(false);
       onShowToast("Lead updated successfully.", "success");
     } catch (err) {
@@ -217,7 +144,7 @@ export const LeadDetail = ({ onShowToast }) => {
   const confirmDelete = async () => {
     const updatedLeads = state.leads.filter((item) => item.leadId !== id);
     try {
-      await updateState({ leads: updatedLeads });
+      await applyCrmChange({ leads: updatedLeads });
       onShowToast("Lead deleted successfully.", "success");
       navigate("/leads");
     } catch (err) {

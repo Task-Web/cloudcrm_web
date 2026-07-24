@@ -6,7 +6,7 @@ import { Modal } from "../components/Modal";
 import { api } from "../apiClient";
 
 export const Files = ({ onShowToast }) => {
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const fileInputRef = useRef(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -42,7 +42,7 @@ export const Files = ({ onShowToast }) => {
         uploadDate: new Date().toISOString(),
       }));
 
-      await updateState({ files: [...state.files, ...newFiles] });
+      await applyCrmChange({ files: [...state.files, ...newFiles] });
       onShowToast(`${newFiles.length} file(s) uploaded successfully.`, "success");
     } catch (err) {
       onShowToast(err.message || "Failed to upload files.", "error");
@@ -83,7 +83,7 @@ export const Files = ({ onShowToast }) => {
   const confirmDelete = async () => {
     const updatedFiles = state.files.filter((file) => file.fileId !== selectedFileId);
     try {
-      await updateState({ files: updatedFiles });
+      await applyCrmChange({ files: updatedFiles });
       onShowToast("File deleted successfully.", "success");
       setShowDeleteModal(false);
       setSelectedFileId("");

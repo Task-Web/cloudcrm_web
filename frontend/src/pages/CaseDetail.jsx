@@ -8,7 +8,7 @@ import { Modal } from "../components/Modal";
 export const CaseDetail = ({ onShowToast }) => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editData, setEditData] = useState({
@@ -51,7 +51,7 @@ export const CaseDetail = ({ onShowToast }) => {
         : item
     );
     try {
-      await updateState({ cases: updatedCases });
+      await applyCrmChange({ cases: updatedCases });
       setShowEditModal(false);
       onShowToast("Case updated successfully.", "success");
     } catch (err) {
@@ -66,7 +66,7 @@ export const CaseDetail = ({ onShowToast }) => {
   const confirmDelete = async () => {
     const updatedCases = state.cases.filter((item) => item.caseId !== id);
     try {
-      await updateState({ cases: updatedCases });
+      await applyCrmChange({ cases: updatedCases });
       onShowToast("Case deleted successfully.", "success");
       navigate("/cases");
     } catch (err) {

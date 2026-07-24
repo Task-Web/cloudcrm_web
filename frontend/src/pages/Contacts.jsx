@@ -5,7 +5,7 @@ import { useApp } from "../context/AppContext";
 import { CreateModal } from "../components/CreateModal";
 
 export const Contacts = ({ onShowToast }) => {
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -61,7 +61,7 @@ export const Contacts = ({ onShowToast }) => {
     };
 
     try {
-      await updateState({ contacts: [...state.contacts, newContact] });
+      await applyCrmChange({ contacts: [...state.contacts, newContact] });
       onShowToast("Contact created successfully.", "success");
     } catch (err) {
       onShowToast(err.message || "Failed to create contact.", "error");

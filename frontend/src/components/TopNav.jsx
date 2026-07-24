@@ -7,7 +7,7 @@ import { CreateModal } from "./CreateModal";
 import { clearUserCookie } from "../utils/cookies";
 
 export const TopNav = ({ onShowToast }) => {
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const [showAppLauncher, setShowAppLauncher] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
@@ -46,7 +46,7 @@ export const TopNav = ({ onShowToast }) => {
       const updatedUsers = state.users.map((user) =>
         user.userId === updatedUser.userId ? updatedUser : user
       );
-      await updateState({ user: updatedUser, users: updatedUsers });
+      await applyCrmChange({ user: updatedUser, users: updatedUsers });
       onShowToast("Profile updated.", "success");
     } catch (err) {
       onShowToast(err.message || "Failed to update profile.", "error");
@@ -60,7 +60,7 @@ export const TopNav = ({ onShowToast }) => {
       const updatedUsers = state.users.map((user) =>
         user.userId === updatedUser.userId ? updatedUser : user
       );
-      await updateState({ user: updatedUser, users: updatedUsers });
+      await applyCrmChange({ user: updatedUser, users: updatedUsers });
       onShowToast("Settings saved.", "success");
     } catch (err) {
       onShowToast(err.message || "Failed to update settings.", "error");

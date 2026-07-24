@@ -6,7 +6,7 @@ import { useApp } from "../context/AppContext";
 import { CreateModal } from "../components/CreateModal";
 
 export const Cases = ({ onShowToast }) => {
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -67,7 +67,7 @@ export const Cases = ({ onShowToast }) => {
     };
 
     try {
-      await updateState({ cases: [...state.cases, newCase] });
+      await applyCrmChange({ cases: [...state.cases, newCase] });
       onShowToast("Case created successfully.", "success");
     } catch (err) {
       onShowToast(err.message || "Failed to create case.", "error");

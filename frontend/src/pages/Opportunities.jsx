@@ -6,7 +6,7 @@ import { useApp } from "../context/AppContext";
 import { CreateModal } from "../components/CreateModal";
 
 export const Opportunities = ({ onShowToast }) => {
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -72,7 +72,7 @@ export const Opportunities = ({ onShowToast }) => {
     };
 
     try {
-      await updateState({ opportunities: [...state.opportunities, newOpportunity] });
+      await applyCrmChange({ opportunities: [...state.opportunities, newOpportunity] });
       onShowToast("Opportunity created successfully.", "success");
     } catch (err) {
       onShowToast(err.message || "Failed to create opportunity.", "error");

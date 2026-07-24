@@ -8,7 +8,7 @@ import { Modal } from "../components/Modal";
 export const ContactDetail = ({ onShowToast }) => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editData, setEditData] = useState({
@@ -47,7 +47,7 @@ export const ContactDetail = ({ onShowToast }) => {
       item.contactId === id ? { ...item, ...editData, modifiedDate: new Date().toISOString() } : item
     );
     try {
-      await updateState({ contacts: updatedContacts });
+      await applyCrmChange({ contacts: updatedContacts });
       setShowEditModal(false);
       onShowToast("Contact updated successfully.", "success");
     } catch (err) {
@@ -62,7 +62,7 @@ export const ContactDetail = ({ onShowToast }) => {
   const confirmDelete = async () => {
     const updatedContacts = state.contacts.filter((item) => item.contactId !== id);
     try {
-      await updateState({ contacts: updatedContacts });
+      await applyCrmChange({ contacts: updatedContacts });
       onShowToast("Contact deleted successfully.", "success");
       navigate("/contacts");
     } catch (err) {

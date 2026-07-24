@@ -14,7 +14,7 @@ import { useApp } from "../context/AppContext";
 import { CreateModal } from "../components/CreateModal";
 
 export const Calendar = ({ onShowToast }) => {
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showEventModal, setShowEventModal] = useState(false);
 
@@ -71,7 +71,7 @@ export const Calendar = ({ onShowToast }) => {
     };
 
     try {
-      await updateState({ activities: [...state.activities, newEvent] });
+      await applyCrmChange({ activities: [...state.activities, newEvent] });
       onShowToast("Event created successfully.", "success");
     } catch (err) {
       onShowToast(err.message || "Failed to create event.", "error");

@@ -8,7 +8,7 @@ import { Modal } from "../components/Modal";
 export const AccountDetail = ({ onShowToast }) => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { state, updateState } = useApp();
+  const { state, applyCrmChange } = useApp();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editData, setEditData] = useState({
@@ -48,7 +48,7 @@ export const AccountDetail = ({ onShowToast }) => {
       item.accountId === id ? { ...item, ...editData, modifiedDate: new Date().toISOString() } : item
     );
     try {
-      await updateState({ accounts: updatedAccounts });
+      await applyCrmChange({ accounts: updatedAccounts });
       setShowEditModal(false);
       onShowToast("Account updated successfully.", "success");
     } catch (err) {
@@ -63,7 +63,7 @@ export const AccountDetail = ({ onShowToast }) => {
   const confirmDelete = async () => {
     const updatedAccounts = state.accounts.filter((item) => item.accountId !== id);
     try {
-      await updateState({ accounts: updatedAccounts });
+      await applyCrmChange({ accounts: updatedAccounts });
       onShowToast("Account deleted successfully.", "success");
       navigate("/accounts");
     } catch (err) {
