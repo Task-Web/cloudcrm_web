@@ -10,6 +10,7 @@ async def test_workspace_and_lead_create_preserve_unrelated_state(async_client):
         json={
             "data": {
                 "evaluator_marker": {"keep": True},
+                "unrelated_top_level": {"hidden": True},
                 "developer_tools_open": False,
             }
         },
@@ -21,6 +22,7 @@ async def test_workspace_and_lead_create_preserve_unrelated_state(async_client):
     assert workspace.status_code == 200
     assert set(workspace.json()) == {"user_id", "workspace"}
     assert "evaluator_marker" not in workspace.json()["workspace"]
+    assert "unrelated_top_level" not in workspace.json()["workspace"]
 
     created = await async_client.post(
         "/api/crm/leads",
@@ -38,6 +40,7 @@ async def test_workspace_and_lead_create_preserve_unrelated_state(async_client):
         await async_client.get("/api/state", params={"cookie": cookie})
     ).json()["state"]["data"]
     assert state["evaluator_marker"] == {"keep": True}
+    assert state["unrelated_top_level"] == {"hidden": True}
     assert state["developer_tools_open"] is False
     assert any(item["leadId"] == lead["leadId"] for item in state["leads"])
 
@@ -47,7 +50,13 @@ async def test_lead_routes_reject_arbitrary_internal_and_invalid_fields(async_cl
     cookie = "crm-api-validation"
     valid = {"firstName": "Grace", "lastName": "Hopper", "company": "Compiler"}
 
-    for field in ("arbitrary_state", "developer_tools_open", "leadId"):
+    for field in (
+        "arbitrary_state",
+        "developer_tools_open",
+        "evaluator_marker",
+        "data",
+        "leadId",
+    ):
         response = await async_client.post(
             "/api/crm/leads",
             params={"cookie": cookie},
