@@ -11,6 +11,7 @@ export const LeadDetail = ({ onShowToast }) => {
   const { state, applyCrmChange, convertLead } = useApp();
   const [activeTab, setActiveTab] = useState("details");
   const [showConvertModal, setShowConvertModal] = useState(false);
+  const [isConverting, setIsConverting] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [convertData, setConvertData] = useState({
@@ -41,7 +42,14 @@ export const LeadDetail = ({ onShowToast }) => {
     return <div>Lead not found</div>;
   }
 
+  const isConverted = lead.isConverted === true || lead.status === "Converted" || Boolean(
+    lead.convertedAccountId || lead.convertedContactId || lead.convertedOpportunityId || lead.convertedDate
+  );
+  const hasConversionSelection = convertData.createAccount || convertData.createContact || convertData.createOpportunity;
+
   const handleConvert = async () => {
+    if (isConverted || isConverting || !hasConversionSelection) return;
+    setIsConverting(true);
     try {
       const nextState = await convertLead(lead.leadId, {
         ...convertData,
@@ -61,6 +69,8 @@ export const LeadDetail = ({ onShowToast }) => {
       }
     } catch (err) {
       onShowToast(err.message || "Failed to convert lead.", "error");
+    } finally {
+      setIsConverting(false);
     }
   };
 
@@ -201,9 +211,13 @@ export const LeadDetail = ({ onShowToast }) => {
               <Phone size={18} />
               Call
             </button>
-            <button className="btn btn-success" onClick={() => setShowConvertModal(true)}>
+            <button
+              className="btn btn-success"
+              disabled={isConverted || isConverting}
+              onClick={() => setShowConvertModal(true)}
+            >
               <RefreshCw size={18} />
-              Convert
+              {isConverted ? "Converted" : "Convert"}
             </button>
             <button className="btn btn-secondary" onClick={handleClone}>
               <Copy size={18} />
@@ -597,7 +611,7 @@ export const LeadDetail = ({ onShowToast }) => {
 
       <Modal
         isOpen={showConvertModal}
-        onClose={() => setShowConvertModal(false)}
+        onClose={() => { if (!isConverting) setShowConvertModal(false); }}
         title="Convert Lead"
         size="large"
       >
@@ -719,11 +733,11 @@ export const LeadDetail = ({ onShowToast }) => {
               borderTop: "1px solid var(--border)",
             }}
           >
-            <button className="btn btn-secondary" onClick={() => setShowConvertModal(false)}>
+            <button className="btn btn-secondary" disabled={isConverting} onClick={() => setShowConvertModal(false)}>
               Cancel
             </button>
-            <button className="btn btn-primary" onClick={handleConvert}>
-              Convert Lead
+            <button className="btn btn-primary" disabled={isConverting || !hasConversionSelection} onClick={handleConvert}>
+              {isConverting ? "Converting..." : "Convert Lead"}
             </button>
           </div>
         </div>
