@@ -26,6 +26,22 @@ Notes:
 - Default `data` includes seeded CRM records (user, leads, accounts, contacts, opportunities, cases, activities, chatter posts, files, and dashboards).
 - File uploads live in backend storage. The UI references them by URL under `data.files`.
 
+## Lead Conversion
+
+- `POST /crm/leads/{lead_id}/convert` creates the selected Account, Contact,
+  and Opportunity records. Select at least one record; creating an Opportunity
+  requires an Account.
+- `Qualified` describes lead qualification and does not mean conversion is complete.
+- A successful conversion keeps the lead's status `Qualified` and sets server-owned
+  `isConverted: true`, `convertedDate`, `convertedAccountId`, `convertedContactId`,
+  and `convertedOpportunityId`. IDs are null for record types not selected.
+- These fields cannot be supplied through the product Lead create/update endpoints.
+- An existing conversion flag, date, linked conversion ID, or legacy `Converted`
+  status returns 409 without creating more records. Changing qualification status
+  does not reset conversion metadata.
+- Legacy records containing only `Qualified` have no reliable conversion marker;
+  the API does not infer completed conversion from that status or company name.
+
 ## Files
 - `POST /files` — upload one or more files (multipart form, field name `files`).
   - Response `200`: `[{ "id": "...", "name": "report.pdf", "size": 123, "type": "application/pdf", "url": "/api/files/<stored>", "filename": "<stored>" }]`

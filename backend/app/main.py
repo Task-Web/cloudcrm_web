@@ -233,6 +233,8 @@ async def convert_crm_lead(
     payload: LeadConversionRequest,
     user_id: str = Depends(get_user_id),
 ) -> Dict[str, Any]:
+    if not any((payload.createAccount, payload.createContact, payload.createOpportunity)):
+        raise HTTPException(status_code=422, detail="Select at least one record to create")
     if payload.createOpportunity and not payload.createAccount:
         raise HTTPException(
             status_code=422, detail="An opportunity conversion requires an account"
@@ -245,11 +247,23 @@ async def convert_crm_lead(
         )
         if lead is None:
             raise HTTPException(status_code=404, detail="Lead not found")
-        if lead.get("status") == "Qualified":
+        if (
+            lead.get("isConverted") is True
+            or lead.get("status") == "Converted"
+            or any(
+                lead.get(key)
+                for key in (
+                    "convertedAccountId", "convertedContactId",
+                    "convertedOpportunityId", "convertedDate",
+                )
+            )
+        ):
             raise HTTPException(status_code=409, detail="Lead is already converted")
         now_value = datetime.now(timezone.utc)
         now = now_value.isoformat().replace("+00:00", "Z")
         account_id = None
+        contact_id = None
+        opportunity_id = None
         if payload.createAccount:
             account_id = f"account_{uuid.uuid4().hex}"
             data.setdefault("accounts", []).append(
@@ -279,9 +293,10 @@ async def convert_crm_lead(
                 }
             )
         if payload.createContact:
+            contact_id = f"contact_{uuid.uuid4().hex}"
             data.setdefault("contacts", []).append(
                 {
-                    "contactId": f"contact_{uuid.uuid4().hex}",
+                    "contactId": contact_id,
                     "accountId": account_id or "",
                     "firstName": lead.get("firstName", ""),
                     "lastName": lead.get("lastName", ""),
@@ -301,9 +316,10 @@ async def convert_crm_lead(
                 }
             )
         if payload.createOpportunity:
+            opportunity_id = f"opp_{uuid.uuid4().hex}"
             data.setdefault("opportunities", []).append(
                 {
-                    "opportunityId": f"opp_{uuid.uuid4().hex}",
+                    "opportunityId": opportunity_id,
                     "name": payload.opportunityName or f"{lead.get('company', '')} - Opportunity",
                     "accountId": account_id,
                     "amount": payload.amount,
@@ -321,6 +337,11 @@ async def convert_crm_lead(
                 }
             )
         lead["status"] = "Qualified"
+        lead["isConverted"] = True
+        lead["convertedDate"] = now
+        lead["convertedAccountId"] = account_id
+        lead["convertedContactId"] = contact_id
+        lead["convertedOpportunityId"] = opportunity_id
         lead["modifiedDate"] = now
         return data
 
